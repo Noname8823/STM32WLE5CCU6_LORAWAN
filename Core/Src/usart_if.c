@@ -23,7 +23,7 @@
 #include "usart_if.h"
 
 /* USER CODE BEGIN Includes */
-
+#include "at_cmd.h"
 /* USER CODE END Includes */
 
 /* External variables ---------------------------------------------------------*/
@@ -232,7 +232,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart2)
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart2)
 {
   /* USER CODE BEGIN HAL_UART_RxCpltCallback_1 */
-
+	ATCMD_InputChar(charRx);
   /* USER CODE END HAL_UART_RxCpltCallback_1 */
   if ((NULL != RxCpltCallback) && (HAL_UART_ERROR_NONE == huart2->ErrorCode))
   {

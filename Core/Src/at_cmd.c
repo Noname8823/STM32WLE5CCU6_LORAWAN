@@ -8,7 +8,6 @@
 
 #define ATCMD_LINE_MAX 128U
 
-static uint8_t at_rx_byte;
 static volatile uint8_t at_line_ready = 0;
 static volatile uint16_t at_line_index = 0;
 static char at_line[ATCMD_LINE_MAX];
@@ -93,7 +92,7 @@ void ATCMD_Init(void)
      * USART2 đã được project dùng cho log UART.
      * Ta bật RX interrupt từng byte.
      */
-    (void)HAL_UART_Receive_IT(&huart2, &at_rx_byte, 1);
+    //(void)HAL_UART_Receive_IT(&huart2, &at_rx_byte, 1);
 
     APP_LOG(TS_OFF, VLEVEL_ALWAYS, "\r\nATCMD READY\r\n");
 }
@@ -285,33 +284,26 @@ void ATCMD_Process(void)
     ATCMD_HandleLine(line_copy);
 }
 
-void ATCMD_UartRxCpltCallback(UART_HandleTypeDef *huart)
+void ATCMD_InputChar(uint8_t c)
 {
-    if (huart->Instance == USART2)
+    if ((c == '\r') || (c == '\n'))
     {
-        char c = (char)at_rx_byte;
-
-        if ((c == '\r') || (c == '\n'))
+        if ((at_line_index > 0U) && (at_line_ready == 0U))
         {
-            if ((at_line_index > 0U) && (at_line_ready == 0U))
-            {
-                at_line[at_line_index] = '\0';
-                at_line_ready = 1U;
-                at_line_index = 0U;
-            }
+            at_line[at_line_index] = '\0';
+            at_line_ready = 1U;
+            at_line_index = 0U;
+        }
+    }
+    else
+    {
+        if ((at_line_ready == 0U) && (at_line_index < (ATCMD_LINE_MAX - 1U)))
+        {
+            at_line[at_line_index++] = (char)c;
         }
         else
         {
-            if ((at_line_ready == 0U) && (at_line_index < (ATCMD_LINE_MAX - 1U)))
-            {
-                at_line[at_line_index++] = c;
-            }
-            else
-            {
-                at_line_index = 0U;
-            }
+            at_line_index = 0U;
         }
-
-        (void)HAL_UART_Receive_IT(&huart2, &at_rx_byte, 1);
     }
 }
