@@ -37,9 +37,10 @@
 #include "sys_conf.h"
 #include "CayenneLpp.h"
 #include "sys_sensors.h"
+#include "app_config.h"
 
 /* USER CODE BEGIN Includes */
-
+#include "app_config.h"
 /* USER CODE END Includes */
 
 /* External variables ---------------------------------------------------------*/
@@ -118,6 +119,8 @@ static void OnRxData(LmHandlerAppData_t *appData, LmHandlerRxParams_t *params);
 static void OnMacProcessNotify(void);
 
 /* USER CODE BEGIN PFP */
+
+static void LoRaWAN_ApplyStoredConfig(void);
 
 /**
   * @brief  LED Tx timer callback function
@@ -268,6 +271,10 @@ void LoRaWAN_Init(void)
 
   /* USER CODE END LoRaWAN_Init_2 */
 
+  /* USER CODE BEGIN LoRaWAN_Config_Apply */
+  LoRaWAN_ApplyStoredConfig();
+  /* USER CODE END LoRaWAN_Config_Apply */
+
   LmHandlerJoin(ActivationType);
 
   if (EventType == TX_ON_TIMER)
@@ -321,7 +328,68 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 /* Private functions ---------------------------------------------------------*/
 /* USER CODE BEGIN PrFD */
+/* USER CODE BEGIN PrFD */
+static void LoRaWAN_ApplyStoredConfig(void)
+{
+    if (AppConfig_Load() == true)
+    {
+        APP_LOG(TS_OFF, VLEVEL_M, "APP_CONFIG: loaded from Flash\r\n");
 
+        if (g_app_config.use_custom_dev_eui != 0U)
+        {
+            if (LmHandlerSetDevEUI(g_app_config.dev_eui) == LORAMAC_HANDLER_SUCCESS)
+            {
+                APP_LOG(TS_OFF, VLEVEL_M, "APP_CONFIG: custom DevEUI applied\r\n");
+            }
+            else
+            {
+                APP_LOG(TS_OFF, VLEVEL_M, "APP_CONFIG: custom DevEUI failed\r\n");
+            }
+        }
+        else
+        {
+            APP_LOG(TS_OFF, VLEVEL_M, "APP_CONFIG: use UID DevEUI\r\n");
+        }
+
+        /*
+         * LmHandler dùng tên AppEUI, tương đương JoinEUI trong naming mới.
+         */
+        if (LmHandlerSetAppEUI(g_app_config.join_eui) == LORAMAC_HANDLER_SUCCESS)
+        {
+            APP_LOG(TS_OFF, VLEVEL_M, "APP_CONFIG: JoinEUI/AppEUI applied\r\n");
+        }
+        else
+        {
+            APP_LOG(TS_OFF, VLEVEL_M, "APP_CONFIG: JoinEUI/AppEUI failed\r\n");
+        }
+
+        /*
+         * Với TTN/LoRaWAN 1.0.x trên stack ST, thường set cả AppKey và NwkKey.
+         */
+        if (LmHandlerSetAppKey(g_app_config.app_key) == LORAMAC_HANDLER_SUCCESS)
+        {
+            APP_LOG(TS_OFF, VLEVEL_M, "APP_CONFIG: AppKey applied\r\n");
+        }
+        else
+        {
+            APP_LOG(TS_OFF, VLEVEL_M, "APP_CONFIG: AppKey failed\r\n");
+        }
+
+        if (LmHandlerSetNwkKey(g_app_config.nwk_key) == LORAMAC_HANDLER_SUCCESS)
+        {
+            APP_LOG(TS_OFF, VLEVEL_M, "APP_CONFIG: NwkKey applied\r\n");
+        }
+        else
+        {
+            APP_LOG(TS_OFF, VLEVEL_M, "APP_CONFIG: NwkKey failed\r\n");
+        }
+    }
+    else
+    {
+        APP_LOG(TS_OFF, VLEVEL_M, "APP_CONFIG: not found, use se-identity.h default\r\n");
+    }
+}
+/* USER CODE END PrFD */
 /* USER CODE END PrFD */
 
 static void OnRxData(LmHandlerAppData_t *appData, LmHandlerRxParams_t *params)

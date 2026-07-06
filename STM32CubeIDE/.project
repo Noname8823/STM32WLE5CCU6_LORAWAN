@@ -363,6 +363,16 @@
 			<locationURI>PARENT-1-PROJECT_LOC/Core/Src/adc_if.c</locationURI>
 		</link>
 		<link>
+			<name>Application/User/Core/app_config.c</name>
+			<type>1</type>
+			<location>F:/VU/LORA/Lorawan/LoRaWAN_End_Node/Core/Src/app_config.c</location>
+		</link>
+		<link>
+			<name>Application/User/Core/at_cmd.c</name>
+			<type>1</type>
+			<location>F:/VU/LORA/Lorawan/LoRaWAN_End_Node/Core/Src/at_cmd.c</location>
+		</link>
+		<link>
 			<name>Application/User/Core/dma.c</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/Core/Src/dma.c</locationURI>
