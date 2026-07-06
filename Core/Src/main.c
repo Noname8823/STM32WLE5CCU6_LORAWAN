@@ -54,7 +54,7 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+static void Board_GPIO_Init(void);
 /* USER CODE END 0 */
 
 /**
@@ -80,7 +80,7 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  Board_GPIO_Init();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -147,7 +147,40 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+static void Board_GPIO_Init(void)
+{
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
 
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+
+    /*
+     * PA4: RS485 direction pin
+     * Mặc định để RX mode.
+     */
+    HAL_GPIO_WritePin(USART2_DR_GPIO_Port, USART2_DR_Pin, GPIO_PIN_RESET);
+
+    GPIO_InitStruct.Pin = USART2_DR_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(USART2_DR_GPIO_Port, &GPIO_InitStruct);
+
+    /*
+     * PB5/PB6/PB7/PB8: isolated input
+     *
+     * 0 = có tín hiệu
+     * 1 = không có tín hiệu
+     *
+     * Nếu mạch opto của bạn đã có điện trở kéo ngoài thì có thể đổi
+     * GPIO_PULLUP thành GPIO_NOPULL.
+     */
+    GPIO_InitStruct.Pin = IN1_Pin | IN2_Pin | IN3_Pin | IN4_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+}
 /* USER CODE END 4 */
 
 /**

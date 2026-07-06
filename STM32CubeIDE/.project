@@ -378,9 +378,19 @@
 			<locationURI>PARENT-1-PROJECT_LOC/Core/Src/dma.c</locationURI>
 		</link>
 		<link>
+			<name>Application/User/Core/isolated_input.c</name>
+			<type>1</type>
+			<location>F:/VU/LORA/Lorawan/LoRaWAN_End_Node/Core/Src/isolated_input.c</location>
+		</link>
+		<link>
 			<name>Application/User/Core/main.c</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/Core/Src/main.c</locationURI>
+		</link>
+		<link>
+			<name>Application/User/Core/rs485.c</name>
+			<type>1</type>
+			<location>F:/VU/LORA/Lorawan/LoRaWAN_End_Node/Core/Src/rs485.c</location>
 		</link>
 		<link>
 			<name>Application/User/Core/rtc.c</name>

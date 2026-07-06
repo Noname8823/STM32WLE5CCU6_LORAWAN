@@ -40,7 +40,9 @@
 #include "app_config.h"
 
 /* USER CODE BEGIN Includes */
-#include "app_config.h"
+#include "isolated_input.h"
+#include "rs485.h"
+#include <string.h>
 /* USER CODE END Includes */
 
 /* External variables ---------------------------------------------------------*/
@@ -73,6 +75,14 @@ typedef enum TxEventType_e
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define APP_PAYLOAD_VERSION        0x01U
+#define APP_MSG_BOARD_STATUS       0x10U
+
+/*
+ * Giới hạn RS485 data gửi lên LoRaWAN.
+ * Để test ban đầu nên để nhỏ.
+ */
+#define APP_RS485_MAX_UPLINK       45U
 
 /* USER CODE END PD */
 
@@ -193,6 +203,8 @@ static uint8_t AppDataBuffer[LORAWAN_APP_DATA_BUFFER_MAX_SIZE];
   */
 static LmHandlerAppData_t AppData = { 0, 0, AppDataBuffer };
 
+static uint8_t AppSeq = 0U;
+
 /**
   * @brief Specifies the state of the application LED
   */
@@ -223,6 +235,9 @@ static UTIL_TIMER_Object_t JoinLedTimer;
 void LoRaWAN_Init(void)
 {
   /* USER CODE BEGIN LoRaWAN_Init_1 */
+
+  IsolatedInput_Init();
+  RS485_Init();
 
   BSP_LED_Init(LED_BLUE);
   BSP_LED_Init(LED_GREEN);
@@ -328,7 +343,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 /* Private functions ---------------------------------------------------------*/
 /* USER CODE BEGIN PrFD */
-/* USER CODE BEGIN PrFD */
+
 static void LoRaWAN_ApplyStoredConfig(void)
 {
     if (AppConfig_Load() == true)
@@ -389,72 +404,69 @@ static void LoRaWAN_ApplyStoredConfig(void)
         APP_LOG(TS_OFF, VLEVEL_M, "APP_CONFIG: not found, use se-identity.h default\r\n");
     }
 }
-/* USER CODE END PrFD */
+
 /* USER CODE END PrFD */
 
 static void OnRxData(LmHandlerAppData_t *appData, LmHandlerRxParams_t *params)
 {
   /* USER CODE BEGIN OnRxData_1 */
-  if ((appData != NULL) || (params != NULL))
+  if ((appData == NULL) || (params == NULL))
   {
-    BSP_LED_On(LED_BLUE) ;
+    return;
+  }
 
-    UTIL_TIMER_Start(&RxLedTimer);
+  BSP_LED_On(LED_BLUE);
 
-    static const char *slotStrings[] = { "1", "2", "C", "C Multicast", "B Ping-Slot", "B Multicast Ping-Slot" };
+  UTIL_TIMER_Start(&RxLedTimer);
 
-    APP_LOG(TS_OFF, VLEVEL_M, "\r\n###### ========== MCPS-Indication ==========\r\n");
-    APP_LOG(TS_OFF, VLEVEL_H, "###### D/L FRAME:%04d | SLOT:%s | PORT:%d | DR:%d | RSSI:%d | SNR:%d\r\n",
-            params->DownlinkCounter, slotStrings[params->RxSlot], appData->Port, params->Datarate, params->Rssi, params->Snr);
-    switch (appData->Port)
-    {
-      case LORAWAN_SWITCH_CLASS_PORT:
-        /*this port switches the class*/
-        if (appData->BufferSize == 1)
+  static const char *slotStrings[] = { "1", "2", "C", "C Multicast", "B Ping-Slot", "B Multicast Ping-Slot" };
+
+  APP_LOG(TS_OFF, VLEVEL_M, "\r\n###### ========== MCPS-Indication ==========\r\n");
+  APP_LOG(TS_OFF, VLEVEL_H, "###### D/L FRAME:%04d | SLOT:%s | PORT:%d | DR:%d | RSSI:%d | SNR:%d\r\n",
+          params->DownlinkCounter, slotStrings[params->RxSlot], appData->Port, params->Datarate, params->Rssi, params->Snr);
+
+  switch (appData->Port)
+  {
+    case LORAWAN_SWITCH_CLASS_PORT:
+      if (appData->BufferSize == 1)
+      {
+        switch (appData->Buffer[0])
         {
-          switch (appData->Buffer[0])
-          {
-            case 0:
-            {
-              LmHandlerRequestClass(CLASS_A);
-              break;
-            }
-            case 1:
-            {
-              LmHandlerRequestClass(CLASS_B);
-              break;
-            }
-            case 2:
-            {
-              LmHandlerRequestClass(CLASS_C);
-              break;
-            }
-            default:
-              break;
-          }
+          case 0:
+            LmHandlerRequestClass(CLASS_A);
+            break;
+          case 1:
+            LmHandlerRequestClass(CLASS_B);
+            break;
+          case 2:
+            LmHandlerRequestClass(CLASS_C);
+            break;
+          default:
+            break;
         }
-        break;
-      case LORAWAN_USER_APP_PORT:
-        if (appData->BufferSize == 1)
+      }
+      break;
+
+    case LORAWAN_USER_APP_PORT:
+      if (appData->BufferSize == 1)
+      {
+        AppLedStateOn = appData->Buffer[0] & 0x01U;
+
+        if (AppLedStateOn == RESET)
         {
-          AppLedStateOn = appData->Buffer[0] & 0x01;
-          if (AppLedStateOn == RESET)
-          {
-            APP_LOG(TS_OFF, VLEVEL_H,   "LED OFF\r\n");
-            BSP_LED_Off(LED_RED) ;
-          }
-          else
-          {
-            APP_LOG(TS_OFF, VLEVEL_H, "LED ON\r\n");
-            BSP_LED_On(LED_RED) ;
-          }
+          APP_LOG(TS_OFF, VLEVEL_H, "LED OFF\r\n");
+          BSP_LED_Off(LED_RED);
         }
-        break;
+        else
+        {
+          APP_LOG(TS_OFF, VLEVEL_H, "LED ON\r\n");
+          BSP_LED_On(LED_RED);
+        }
+      }
+      break;
 
-      default:
-
-        break;
-    }
+    default:
+      break;
   }
   /* USER CODE END OnRxData_1 */
 }
@@ -462,86 +474,100 @@ static void OnRxData(LmHandlerAppData_t *appData, LmHandlerRxParams_t *params)
 static void SendTxData(void)
 {
   /* USER CODE BEGIN SendTxData_1 */
-  uint16_t pressure = 0;
-  int16_t temperature = 0;
-  sensor_t sensor_data;
   UTIL_TIMER_Time_t nextTxIn = 0;
+  uint32_t i = 0U;
 
-#ifdef CAYENNE_LPP
-  uint8_t channel = 0;
-#else
-  uint16_t humidity = 0;
-  uint32_t i = 0;
-  int32_t latitude = 0;
-  int32_t longitude = 0;
-  uint16_t altitudeGps = 0;
-#endif /* CAYENNE_LPP */
-
-  EnvSensors_Read(&sensor_data);
-  temperature = (SYS_GetTemperatureLevel() >> 8);
-  pressure    = (uint16_t)(sensor_data.pressure * 100 / 10);      /* in hPa / 10 */
+  uint8_t input_state;
+  uint8_t rs485_buf[APP_RS485_MAX_UPLINK];
+  uint16_t rs485_len_16 = 0U;
+  uint8_t rs485_len = 0U;
+  RS485_Status_t rs485_status;
 
   AppData.Port = LORAWAN_USER_APP_PORT;
 
-#ifdef CAYENNE_LPP
-  CayenneLppReset();
-  CayenneLppAddBarometricPressure(channel++, pressure);
-  CayenneLppAddTemperature(channel++, temperature);
-  CayenneLppAddRelativeHumidity(channel++, (uint16_t)(sensor_data.humidity));
+  /*
+   * Đọc 4 input opto.
+   *
+   * Quy ước:
+   * bit0 = IN1
+   * bit1 = IN2
+   * bit2 = IN3
+   * bit3 = IN4
+   *
+   * 0 = có tín hiệu
+   * 1 = không có tín hiệu
+   *
+   * Chưa có tín hiệu gì:
+   * IN1=1, IN2=1, IN3=1, IN4=1
+   * input_state = 0000 1111 = 0x0F
+   */
+  input_state = IsolatedInput_ReadRaw();
 
-  if ((LmHandlerParams.ActiveRegion != LORAMAC_REGION_US915) && (LmHandlerParams.ActiveRegion != LORAMAC_REGION_AU915)
-      && (LmHandlerParams.ActiveRegion != LORAMAC_REGION_AS923))
+  /*
+   * Đọc RS485 nếu đang có data.
+   * Nếu chưa có data RS485 thì status = RS485_STATUS_NONE, len = 0.
+   */
+  rs485_status = RS485_ReadAvailable(rs485_buf,
+                                     APP_RS485_MAX_UPLINK,
+                                     &rs485_len_16,
+                                     3U);
+
+  if (rs485_status != RS485_STATUS_OK)
   {
-    CayenneLppAddDigitalInput(channel++, GetBatteryLevel());
-    CayenneLppAddDigitalOutput(channel++, AppLedStateOn);
+    rs485_len_16 = 0U;
   }
 
-  CayenneLppCopy(AppData.Buffer);
-  AppData.BufferSize = CayenneLppGetSize();
-#else  /* not CAYENNE_LPP */
-  humidity    = (uint16_t)(sensor_data.humidity * 10);            /* in %*10     */
-
-  AppData.Buffer[i++] = AppLedStateOn;
-  AppData.Buffer[i++] = (uint8_t)((pressure >> 8) & 0xFF);
-  AppData.Buffer[i++] = (uint8_t)(pressure & 0xFF);
-  AppData.Buffer[i++] = (uint8_t)(temperature & 0xFF);
-  AppData.Buffer[i++] = (uint8_t)((humidity >> 8) & 0xFF);
-  AppData.Buffer[i++] = (uint8_t)(humidity & 0xFF);
-
-  if ((LmHandlerParams.ActiveRegion == LORAMAC_REGION_US915) || (LmHandlerParams.ActiveRegion == LORAMAC_REGION_AU915)
-      || (LmHandlerParams.ActiveRegion == LORAMAC_REGION_AS923))
+  if (rs485_len_16 > APP_RS485_MAX_UPLINK)
   {
-    AppData.Buffer[i++] = 0;
-    AppData.Buffer[i++] = 0;
-    AppData.Buffer[i++] = 0;
-    AppData.Buffer[i++] = 0;
+    rs485_len_16 = APP_RS485_MAX_UPLINK;
   }
-  else
-  {
-    latitude = sensor_data.latitude;
-    longitude = sensor_data.longitude;
 
-    AppData.Buffer[i++] = GetBatteryLevel();        /* 1 (very low) to 254 (fully charged) */
-    AppData.Buffer[i++] = (uint8_t)((latitude >> 16) & 0xFF);
-    AppData.Buffer[i++] = (uint8_t)((latitude >> 8) & 0xFF);
-    AppData.Buffer[i++] = (uint8_t)(latitude & 0xFF);
-    AppData.Buffer[i++] = (uint8_t)((longitude >> 16) & 0xFF);
-    AppData.Buffer[i++] = (uint8_t)((longitude >> 8) & 0xFF);
-    AppData.Buffer[i++] = (uint8_t)(longitude & 0xFF);
-    AppData.Buffer[i++] = (uint8_t)((altitudeGps >> 8) & 0xFF);
-    AppData.Buffer[i++] = (uint8_t)(altitudeGps & 0xFF);
+  rs485_len = (uint8_t)rs485_len_16;
+
+  /*
+   * Payload format:
+   *
+   * Byte 0    = version
+   * Byte 1    = msg_type
+   * Byte 2    = sequence
+   * Byte 3    = input_state
+   * Byte 4    = rs485_status
+   * Byte 5    = rs485_len
+   * Byte 6... = rs485_data
+   */
+  AppData.Buffer[i++] = APP_PAYLOAD_VERSION;
+  AppData.Buffer[i++] = APP_MSG_BOARD_STATUS;
+  AppData.Buffer[i++] = AppSeq++;
+  AppData.Buffer[i++] = input_state;
+  AppData.Buffer[i++] = (uint8_t)rs485_status;
+  AppData.Buffer[i++] = rs485_len;
+
+  if (rs485_len > 0U)
+  {
+    (void)memcpy(&AppData.Buffer[i], rs485_buf, rs485_len);
+    i += rs485_len;
   }
 
   AppData.BufferSize = i;
-#endif /* CAYENNE_LPP */
 
-  if (LORAMAC_HANDLER_SUCCESS == LmHandlerSend(&AppData, LORAWAN_DEFAULT_CONFIRMED_MSG_STATE, &nextTxIn, false))
+  APP_LOG(TS_ON, VLEVEL_M,
+          "UL: input=0x%02X rs485_status=%d rs485_len=%d\r\n",
+          input_state,
+          rs485_status,
+          rs485_len);
+
+  if (LORAMAC_HANDLER_SUCCESS == LmHandlerSend(&AppData,
+                                               LORAWAN_DEFAULT_CONFIRMED_MSG_STATE,
+                                               &nextTxIn,
+                                               false))
   {
     APP_LOG(TS_ON, VLEVEL_L, "SEND REQUEST\r\n");
   }
-  else if (nextTxIn > 0)
+  else if (nextTxIn > 0U)
   {
-    APP_LOG(TS_ON, VLEVEL_L, "Next Tx in  : ~%d second(s)\r\n", (nextTxIn / 1000));
+    APP_LOG(TS_ON, VLEVEL_L,
+            "Next Tx in  : ~%d second(s)\r\n",
+            (nextTxIn / 1000U));
   }
 
   /* USER CODE END SendTxData_1 */

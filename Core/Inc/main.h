@@ -94,7 +94,58 @@ void Error_Handler(void);
 #define PROB4_Pin GPIO_PIN_10
 #define PROB4_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
+/* USER CODE BEGIN Private defines */
 
+/*
+ * Custom board pin mapping
+ *
+ * IN1 = PB5
+ * IN2 = PB6
+ * IN3 = PB7
+ * IN4 = PB8
+ *
+ * Quy ước input opto:
+ * 0 = có tín hiệu
+ * 1 = không có tín hiệu
+ */
+#define IN1_Pin                 GPIO_PIN_5
+#define IN1_GPIO_Port           GPIOB
+
+#define IN2_Pin                 GPIO_PIN_6
+#define IN2_GPIO_Port           GPIOB
+
+#define IN3_Pin                 GPIO_PIN_7
+#define IN3_GPIO_Port           GPIOB
+
+#define IN4_Pin                 GPIO_PIN_8
+#define IN4_GPIO_Port           GPIOB
+
+/*
+ * RS485 MAX3485 direction pin
+ *
+ * USART2_DR = PA4
+ * PA4 = 0: Receive mode
+ * PA4 = 1: Transmit mode
+ */
+#define USART2_DR_Pin           GPIO_PIN_4
+#define USART2_DR_GPIO_Port     GPIOA
+
+/*
+ * USART2 dùng cho RS485
+ *
+ * PA2 = USART2_TX
+ * PA3 = USART2_RX
+ *
+ * Project mẫu đang dùng alias USARTx_TX/RX rồi,
+ * nên giữ nguyên define cũ ở phía trên:
+ *
+ * #define USARTx_RX_Pin GPIO_PIN_3
+ * #define USARTx_RX_GPIO_Port GPIOA
+ * #define USARTx_TX_Pin GPIO_PIN_2
+ * #define USARTx_TX_GPIO_Port GPIOA
+ */
+
+/* USER CODE END Private defines */
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
