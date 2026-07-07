@@ -502,6 +502,7 @@ static void SendTxData(void)
    * input_state = 0000 1111 = 0x0F
    */
   input_state = IsolatedInput_ReadRaw();
+  uint8_t input_active = (uint8_t)((~input_state) & 0x0FU);
 
   /*
    * Đọc RS485 nếu đang có data.
@@ -538,7 +539,7 @@ static void SendTxData(void)
   AppData.Buffer[i++] = APP_PAYLOAD_VERSION;
   AppData.Buffer[i++] = APP_MSG_BOARD_STATUS;
   AppData.Buffer[i++] = AppSeq++;
-  AppData.Buffer[i++] = input_state;
+  AppData.Buffer[i++] = input_active;
   AppData.Buffer[i++] = (uint8_t)rs485_status;
   AppData.Buffer[i++] = rs485_len;
 
@@ -551,8 +552,9 @@ static void SendTxData(void)
   AppData.BufferSize = i;
 
   APP_LOG(TS_ON, VLEVEL_M,
-          "UL: input=0x%02X rs485_status=%d rs485_len=%d\r\n",
+          "UL: input_raw=0x%02X input_active=0x%02X rs485_status=%d rs485_len=%d\r\n",
           input_state,
+          input_active,
           rs485_status,
           rs485_len);
 
